@@ -1,17 +1,16 @@
-import chess.svg
-import uuid
-import textwrap
 import io
-import chess
-import chess.pgn
-import chess.svg
-import argparse
 import re
 import sys
+import uuid
+import chess
+import argparse
+import textwrap
 import requests
+import chess.pgn
+import chess.svg
 from io import BytesIO
-from PIL import Image, ImageDraw, ImageFont
 from cairosvg import svg2png
+from PIL import Image, ImageDraw, ImageFont
 
 parser = argparse.ArgumentParser("PGN to GIF")
 parser.add_argument('-f', 
@@ -43,7 +42,12 @@ parser.add_argument('-l',
                     '--literate', 
                     dest='literate',
                     help='Insert textual annotations in the PGN about the opening, analysis variations, mistakes, and game termination',
-                    default="true")
+                    default="false")
+parser.add_argument('-o', 
+                    '--output', 
+                    dest='output',
+                    help='Specify the output filename.',
+                    default=None)
 
 args = parser.parse_args()
 
@@ -56,7 +60,6 @@ def extractPGN(text):
 
 def getListOfFEN(game):
     data = []
-    # iterate over the mainline pgn
     board = game.board()
     for move in game.mainline_moves():
         data.append(str(board.fen()))
@@ -64,16 +67,15 @@ def getListOfFEN(game):
     return data
 
 def generateFilename():
-    unique_filename = str(uuid.uuid4().hex)
-    return unique_filename
+    return str(uuid.uuid4().hex)
 
 def draw_multiple_line_text(img, text, font, text_color=(255,255,255), text_start_height=0, offset=(0,0), text_area=(None, None), step=None):
     if(text_area==(None, None)):
         text_area = img.size
-    text_area_width, text_area_height = text_area
+    text_area_width, _ = text_area
     draw = ImageDraw.Draw(img)
     offset_x, offset_y = offset
-    image_width, image_height = img.size
+    image_width, _ = img.size
     y_text = text_start_height
     lines = textwrap.wrap(text, width=text_area_width)
     for line in lines:
@@ -82,10 +84,12 @@ def draw_multiple_line_text(img, text, font, text_color=(255,255,255), text_star
                   line, font=font, fill=text_color)
         y_text += line_height
 
-def outputSequence(sequence):
-    #filename = generateFilename()+".gif"
-    filename = "test.gif"
-    print(filename)
+def outputSequence(sequence, args):
+    if(args.output is None):
+        filename = generateFilename()
+    else:
+        filename = re.sub(r"[^A-Za-z0-9._]+", "", args.output)
+    filename += ".gif"
     sequence[0].save(filename,
         save_all = True, append_images = sequence[1:], 
         optimize = True, duration = 1000)
@@ -117,15 +121,12 @@ def FEN_to_GIF(fen,
                     chess.svg.board(board,
                                     size=boardsize,
                                     coordinates=coordinates,
-                    #arrows=[chess.svg.Arrow(chess.E4, chess.F6, color="#0000cccc")],
-                    #squares=chess.SquareSet(chess.BB_DARK_SQUARES & chess.BB_FILE_B),
         ))))
         # information about the first image
         width, height = source_img.size
         # create a base layer
         base = Image.new(mode="RGBA", size=(width*2,height), color=base_color)
         base.paste(source_img, (0,0))
-
         # calculate the text wrap size
         text_width_max = base.size[0]/fontsize
         draw_multiple_line_text(img=base, 
@@ -143,44 +144,34 @@ def FEN_to_GIF(fen,
 
 if (args.filename is not None):
     pgn_file_location = args.filename
-    print("Loading file : ", pgn_file_location)
-    print("Opening file")
     f = open(pgn_file_location, "r")
     text = f.read()
 elif (args.website is not None):
-    print("web")
     response = requests.get(args.website)
-    print((response.text))
-    print(response.headers)
     text = response.text
 elif (args.id is not None):
-    print("ID")
     url = "https://lichess.org/game/export/"+args.id+"?"
     url += "&clocks="+args.clocks
     url += "&evals="+args.evals
     url += "&literate="+args.literate
     print(url)
     response = requests.get(url)
+    if (response.status_code != 200):
+        print("Unable to make request")
+        print("Status Code: " + str(response.status_code))
+        exit()
     text = response.text
-    print(text)
 else:
-    print("Invalid input")
-    print("--help")
+    print("Invalid input, use --help")
     exit()
 
-
-
 # Take pgn from commandline argument
-print("Extracting information")
 pgn_string = extractPGN(text)
 pgn_ = io.StringIO(pgn_string)
-# create a game object
-print("Creating game")
 game = chess.pgn.read_game(pgn_)
 FEN = getListOfFEN(game)
 PGN = pgn_string
 sequence = FEN_to_GIF(FEN, pgn=PGN)
 sys.stdout.write("\r\n")
 sys.stdout.flush()
-print("Saving GIF")
-outputSequence(sequence)
+outputSequence(sequence, args)
