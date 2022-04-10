@@ -23,7 +23,7 @@ parser.add_argument('-w',
                     dest='website',
                     help='Add URL path to PGN',
                     default=None)
-parser.add_argument('-id', 
+parser.add_argument('-i', 
                     '--id', 
                     dest='id',
                     help='Add Lichess Game ID',
@@ -94,14 +94,46 @@ def outputSequence(sequence, args):
         save_all = True, append_images = sequence[1:], 
         optimize = True, duration = 1000)
 
+def createBackground(width=500, 
+                     height=500, 
+                     color=(0,0,0), 
+                     fontsize=16,
+                     pgn="sample_text",
+                     font=(ImageFont.truetype("arial.ttf", 16)),
+                     padding=10,
+                     ):
+    # create a base layer
+    base = Image.new(mode="RGBA", size=(width*2,height), color=color)
+    # calculate the text wrap size
+    text_width_max = base.size[0]/fontsize
+    draw_multiple_line_text(img=base, 
+                                text=pgn,
+                                font=font, 
+                                text_start_height=padding, 
+                                offset=(width/2,0), 
+                                text_area=(text_width_max,0),
+                            )
+    return base
+
 def FEN_to_GIF(fen, 
                pgn="sample_text", 
+               metadata="",
                base_color=(0,0,0), 
                fontsize=16, 
                font=(ImageFont.truetype("arial.ttf", 16)), 
                padding=10, 
                boardsize=500,
                coordinates=True):
+
+    base = createBackground(pgn=pgn, 
+                            color=base_color, 
+                            fontsize=fontsize,
+                            font=font,
+                            padding=padding,
+                            width=boardsize,
+                            height=boardsize)
+
+
     sys.stdout.flush()
     step = 0
     sequence = []
@@ -112,65 +144,64 @@ def FEN_to_GIF(fen,
         percent = (int)((step/len(fen))*100)
         sys.stdout.write("Converting to GIF: %s" %(str(percent)+"%")) 
         sys.stdout.flush()
-        # board information
+        
+        # create board from position
         board = chess.Board(position)
-        #  first image
-        source_img = Image.open(
+        # create image of the board
+        board_img = Image.open(
             BytesIO(
                 svg2png(
                     chess.svg.board(board,
                                     size=boardsize,
                                     coordinates=coordinates,
         ))))
-        # information about the first image
-        width, height = source_img.size
-        # create a base layer
-        base = Image.new(mode="RGBA", size=(width*2,height), color=base_color)
-        base.paste(source_img, (0,0))
-        # calculate the text wrap size
-        text_width_max = base.size[0]/fontsize
-        draw_multiple_line_text(img=base, 
-                                text=pgn, 
-                                font=font, 
-                                text_start_height=padding, 
-                                offset=(width/2,0), 
-                                text_area=(text_width_max,0),
-                                step=(step-1)
-                            )
+        base.paste(board_img, (0,0))
         # add this frame to the gif sequence
         sequence.append(base)
     return sequence
-#######
 
-if (args.filename is not None):
-    pgn_file_location = args.filename
-    f = open(pgn_file_location, "r")
-    text = f.read()
-elif (args.website is not None):
-    response = requests.get(args.website)
-    text = response.text
-elif (args.id is not None):
-    url = "https://lichess.org/game/export/"+args.id+"?"
-    url += "&clocks="+args.clocks
-    url += "&evals="+args.evals
-    url += "&literate="+args.literate
-    print(url)
-    response = requests.get(url)
-    if (response.status_code != 200):
-        print("Unable to make request")
-        print("Status Code: " + str(response.status_code))
+def extractText(args):   
+    if (args.filename is not None):
+        pgn_file_location = args.filename
+        f = open(pgn_file_location, "r")
+        return f.read()
+    elif (args.website is not None):
+        response = requests.get(args.website)
+        return response.text
+    elif (args.id is not None):
+        url = "https://lichess.org/game/export/"+args.id+"?"
+        url += "&clocks="+args.clocks
+        url += "&evals="+args.evals
+        url += "&literate="+args.literate
+        print(url)
+        response = requests.get(url)
+        if (response.status_code != 200):
+            print("Unable to make request")
+            print("Status Code: " + str(response.status_code))
+            exit()
+        return response.text
+    else:
+        print("Invalid input, use --help")
         exit()
-    text = response.text
-else:
-    print("Invalid input, use --help")
-    exit()
+
+def extractMetadata(text):
+    metadata = ""
+    metadata_regex = r"^\[.+"
+    matches = re.finditer(metadata_regex, text, re.MULTILINE)
+    for match in matches:
+        metadata += match.group()+"\n"
+    return metadata
 
 # Take pgn from commandline argument
+text = extractText(args)
+#metadata_text = extractMetadata(text)
+#print(metadata_text)
 pgn_string = extractPGN(text)
 pgn_ = io.StringIO(pgn_string)
 game = chess.pgn.read_game(pgn_)
 FEN = getListOfFEN(game)
 PGN = pgn_string
+#sequence = FEN_to_GIF(FEN, pgn=PGN, metadata=metadata_text)
 sequence = FEN_to_GIF(FEN, pgn=PGN)
 sys.stdout.write("\r\n")
 sys.stdout.flush()
