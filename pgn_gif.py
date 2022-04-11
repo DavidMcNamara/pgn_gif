@@ -36,19 +36,7 @@ def getListOfFEN(game):
 def generateFilename():
     return str(uuid.uuid4().hex)
 
-def drawer(font, img, texts):
-    print(texts)
-    lines = textwrap.wrap(texts, width=40)
-    print(lines)
-    draw = ImageDraw.Draw(img)
-    y_text = 0
-    for line in lines:
-        width, height = font.getsize(line)
-        draw.text((0, y_text), line, font=font)
-        y_text += height
-    return draw
-
-def multiblock_text(img, text, font, text_color=(255,255,255), text_start_height=0, offset=(0,0), text_area=(None, None), step=None):
+def multiblock_text(img, text, font, text_color=(255,255,255), text_start_height=0, offset=(0,0), text_area=(None, None), align='left'):
     if(text_area==(None, None)):
         text_area = img.size
     draw = ImageDraw.Draw(img)
@@ -58,11 +46,10 @@ def multiblock_text(img, text, font, text_color=(255,255,255), text_start_height
     draw.multiline_text(((image_width/2)+offset_x, (y_text+offset_y)),
                         text=text, 
                         font=font,
-                        align='left',
-                        fill=text_color  )
+                        align=align,
+                        fill=text_color)
 
 def draw_multiple_line_text(img, text, font, text_color=(255,255,255), text_start_height=0, offset=(0,0), text_area=(None, None), step=None):
-    print(text)
     if(text_area==(None, None)):
         text_area = img.size
     text_area_width, _ = text_area
@@ -108,6 +95,47 @@ def createBackground(width=500,
                             )
     return base
 
+def drawline(base, 
+            shape,
+            width=500, 
+            height=500,
+            ):
+    img = ImageDraw.Draw(base)  
+    img.line(shape, fill ="red", width = 10)
+    return base
+
+def createEval(width=500, 
+               height=500, 
+               color=(0,0,0), 
+               fontsize=16,
+               eval=0,
+               font=(ImageFont.truetype("arial.ttf", 16)),
+               padding=10,
+               ):
+    mid = 50
+    start = 0
+    end = 100
+
+    #pixels = ((int)(eval), 0)
+    pixels = ((width/2) + (eval*10),0)
+    shape = [pixels, (width/2,0)]
+
+    # create a base layer
+    base = Image.new(mode="RGBA", size=(width,height), color=(0,0,0))
+    # calculate the text wrap size
+    text_width_max = base.size[0]/fontsize
+    
+    base_ = drawline(base, shape)
+    e = str(eval)
+    multiblock_text(img=base, 
+                            text=e,
+                            font=font, 
+                            text_start_height=padding, 
+                            offset=(0,0), 
+                            text_area=(text_width_max,0),
+                            )
+    return base_
+
 def createStaticMetaInfo(width=500, 
                         height=500, 
                         color=(0,0,0), 
@@ -135,6 +163,8 @@ def createStaticMetaInfo(width=500,
     return base
     
 def FEN_to_GIF(fen, 
+               evals=[],
+               clks=[],
                pgn="sample_text", 
                metadata="",
                base_color=(0,0,0), 
@@ -175,15 +205,25 @@ def FEN_to_GIF(fen,
         board = chess.Board(position)
         # create image of the board
         board_img = Image.open(
-            BytesIO(
-                svg2png(
-                    chess.svg.board(board,
+            BytesIO(svg2png(chess.svg.board(board,
                                     size=boardsize,
                                     coordinates=coordinates,
-        ))))
+                                    ))))
         new_base = base.copy()
-        new_base.paste(meta, (0,(int)(boardsize/2)))
+        #e = str(evals.pop(0))
+        e = (evals.pop(0))
+        eval_img = createEval(eval=e,
+                              color=base_color,
+                              fontsize=fontsize,
+                              font=font,
+                              padding=padding,
+                              width=boardsize,
+                              height=(int)(boardsize/2))
+        new_base.paste(eval_img, ((int)(boardsize),((int)(boardsize/100)*90)))
+        #new_base.paste(meta, (0,(int)(boardsize/2)))
         new_base.paste(board_img, (0,0))
+
+        
         # add this frame to the gif sequence
         sequence.append(new_base)
     return sequence
@@ -271,6 +311,22 @@ def extractMetadata(text):
     }
     return metadata, meta
 
+def extractEval(text):
+    evals = []
+    eval_regex = r"\[%eval ((?:\\.|[^\]\\])*)]"
+    matches = re.finditer(eval_regex, text, re.MULTILINE)
+    for match in matches:
+        evals.append(float(match.group(1)))
+    return evals
+
+def extractClock(text):
+    evals = []
+    clock_regex = r"\[%clk ((?:\\.|[^\]\\])*)]"
+    matches = re.finditer(clock_regex, text, re.MULTILINE)
+    for match in matches:
+        evals.append(str(match.group(1)))
+    return evals
+
 #  pgn from commandline argument
 args = parser.parse_args()
 text = extractText(args)
@@ -279,7 +335,15 @@ pgn_string = extractPGN(text)
 game = chess.pgn.read_game(io.StringIO(pgn_string))
 FEN = getListOfFEN(game)
 PGN = pgn_string
-sequence = FEN_to_GIF(FEN, pgn=PGN, metadata=meta_dictionary)
+
+EVALS = extractEval(PGN)
+CLKS = extractClock(PGN)
+
+sequence = FEN_to_GIF(fen=FEN, 
+                      pgn=PGN, 
+                      metadata=meta_dictionary,
+                      evals=EVALS,
+                      clks=CLKS)
 sys.stdout.write("\r\n")
 sys.stdout.flush()
 outputSequence(sequence, args)
