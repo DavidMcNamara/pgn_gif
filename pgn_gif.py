@@ -4,7 +4,6 @@ import re
 import sys
 import uuid
 import chess
-import argparse
 import textwrap
 import requests
 import chess.pgn
@@ -12,46 +11,12 @@ import chess.svg
 from io import BytesIO
 from cairosvg import svg2png
 from PIL import Image, ImageDraw, ImageFont
+from argument_parse import getParser
 
 ## TODO add metadata to be included in the additional information
 # metadata dictionary is created now, just need to use the information from it to draw to the base
 
-parser = argparse.ArgumentParser("PGN to GIF")
-parser.add_argument('-f', 
-                    '--file', 
-                    dest='filename',
-                    help='Add file path to a PGN file',
-                    default=None)
-parser.add_argument('-w', 
-                    '--web', 
-                    dest='website',
-                    help='Add URL path to PGN',
-                    default=None)
-parser.add_argument('-i', 
-                    '--id', 
-                    dest='id',
-                    help='Add Lichess Game ID',
-                    default=None)
-parser.add_argument('-c', 
-                    '--clocks', 
-                    dest='clocks',
-                    help='Include clock comments in the PGN moves, when available',
-                    default="false")
-parser.add_argument('-e', 
-                    '--evals', 
-                    dest='evals',
-                    help='Include analysis evaluation comments in the PGN, when available',
-                    default="false")
-parser.add_argument('-l', 
-                    '--literate', 
-                    dest='literate',
-                    help='Insert textual annotations in the PGN about the opening, analysis variations, mistakes, and game termination',
-                    default="false")
-parser.add_argument('-o', 
-                    '--output', 
-                    dest='output',
-                    help='Specify the output filename.',
-                    default=None)
+parser = getParser()
 
 def extractPGN(text):
     pgn = ''
@@ -315,8 +280,6 @@ game = chess.pgn.read_game(io.StringIO(pgn_string))
 FEN = getListOfFEN(game)
 PGN = pgn_string
 sequence = FEN_to_GIF(FEN, pgn=PGN, metadata=meta_dictionary)
-print(len(sequence))
-#sequence = FEN_to_GIF(FEN, pgn=PGN)
 sys.stdout.write("\r\n")
 sys.stdout.flush()
 outputSequence(sequence, args)
