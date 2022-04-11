@@ -110,13 +110,7 @@ def createEval(width=500,
                fontsize=16,
                eval=0,
                font=(ImageFont.truetype("arial.ttf", 16)),
-               padding=10,
-               ):
-    mid = 50
-    start = 0
-    end = 100
-
-    #pixels = ((int)(eval), 0)
+               padding=10,):
     pixels = ((width/2) + (eval*10),0)
     shape = [pixels, (width/2,0)]
 
@@ -135,6 +129,36 @@ def createEval(width=500,
                             text_area=(text_width_max,0),
                             )
     return base_
+
+def createClk(width=500, 
+              height=500, 
+               color=(0,0,0), 
+               fontsize=16,
+               clk="NA",
+               font=(ImageFont.truetype("arial.ttf", 16)),
+               padding=10,):
+
+    # create a base layer
+    base = Image.new(mode="RGBA", size=(width,height), color=(0,0,0))
+    # calculate the text wrap size
+    text_width_max = base.size[0]/fontsize
+    
+    multiblock_text(img=base, 
+                            text=clk[0],
+                            font=font, 
+                            text_start_height=padding, 
+                            offset=(150,0), 
+                            text_area=(text_width_max,0),
+                            text_color=(255,0,0)
+                            )
+    multiblock_text(img=base, 
+                            text=clk[1],
+                            font=font, 
+                            text_start_height=padding, 
+                            offset=(-150,0), 
+                            text_area=(text_width_max,0),
+                            )
+    return base
 
 def createStaticMetaInfo(width=500, 
                         height=500, 
@@ -173,7 +197,6 @@ def FEN_to_GIF(fen,
                padding=10, 
                boardsize=500,
                coordinates=True):
-
     meta = createStaticMetaInfo(meta=metadata,
                                 color=base_color,
                                 fontsize=fontsize,
@@ -182,7 +205,6 @@ def FEN_to_GIF(fen,
                                 width=boardsize,
                                 height=(int)(boardsize/2)
                                 )
-
     base = createBackground(pgn=pgn, 
                             color=base_color, 
                             fontsize=fontsize,
@@ -190,10 +212,11 @@ def FEN_to_GIF(fen,
                             padding=padding,
                             width=boardsize,
                             height=boardsize)
-
     sys.stdout.flush()
-    step = 0
+    isWhite = True
+    white_clock, black_clock = "", ""
     sequence = []
+    step = 0
     for position in fen:
         step+=1
         sys.stdout.write("\r")
@@ -204,14 +227,9 @@ def FEN_to_GIF(fen,
         # create board from position
         board = chess.Board(position)
         # create image of the board
-        board_img = Image.open(
-            BytesIO(svg2png(chess.svg.board(board,
-                                    size=boardsize,
-                                    coordinates=coordinates,
-                                    ))))
+        board_img = Image.open(BytesIO(svg2png(chess.svg.board(board,size=boardsize,coordinates=coordinates))))
         new_base = base.copy()
-        #e = str(evals.pop(0))
-        e = (evals.pop(0))
+        e = evals.pop(0)
         eval_img = createEval(eval=e,
                               color=base_color,
                               fontsize=fontsize,
@@ -219,8 +237,26 @@ def FEN_to_GIF(fen,
                               padding=padding,
                               width=boardsize,
                               height=(int)(boardsize/2))
+
+        if isWhite:
+            white_clock = clks.pop(0)
+        else:
+            black_clock = clks.pop(0)
+        isWhite = not isWhite
+        
+        clk_img = createClk(clk=(white_clock, black_clock),
+                             color=base_color,
+                             fontsize=fontsize,
+                             font=font,
+                             padding=padding,
+                             width=boardsize,
+                             height=(int)(boardsize))
+
+        new_base.paste(meta, (0,(int)(boardsize/2)))
+        new_base.paste(clk_img, ((int)(boardsize),((int)(boardsize/100)*85)))
         new_base.paste(eval_img, ((int)(boardsize),((int)(boardsize/100)*90)))
-        #new_base.paste(meta, (0,(int)(boardsize/2)))
+        
+        
         new_base.paste(board_img, (0,0))
 
         
