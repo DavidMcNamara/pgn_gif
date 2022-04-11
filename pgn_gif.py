@@ -1,3 +1,4 @@
+from importlib.metadata import metadata
 import io
 import re
 import sys
@@ -11,6 +12,9 @@ import chess.svg
 from io import BytesIO
 from cairosvg import svg2png
 from PIL import Image, ImageDraw, ImageFont
+
+## TODO add metadata to be included in the additional information
+# metadata dictionary is created now, just need to use the information from it to draw to the base
 
 parser = argparse.ArgumentParser("PGN to GIF")
 parser.add_argument('-f', 
@@ -49,8 +53,6 @@ parser.add_argument('-o',
                     help='Specify the output filename.',
                     default=None)
 
-args = parser.parse_args()
-
 def extractPGN(text):
     pgn = ''
     pgn_regex = r"(1\..*)$"
@@ -69,7 +71,33 @@ def getListOfFEN(game):
 def generateFilename():
     return str(uuid.uuid4().hex)
 
+def drawer(font, img, texts):
+    print(texts)
+    lines = textwrap.wrap(texts, width=40)
+    print(lines)
+    draw = ImageDraw.Draw(img)
+    y_text = 0
+    for line in lines:
+        width, height = font.getsize(line)
+        draw.text((0, y_text), line, font=font)
+        y_text += height
+    return draw
+
+def multiblock_text(img, text, font, text_color=(255,255,255), text_start_height=0, offset=(0,0), text_area=(None, None), step=None):
+    if(text_area==(None, None)):
+        text_area = img.size
+    draw = ImageDraw.Draw(img)
+    offset_x, offset_y = offset
+    image_width, _ = img.size
+    y_text = text_start_height
+    draw.multiline_text(((image_width/2)+offset_x, (y_text+offset_y)),
+                        text=text, 
+                        font=font,
+                        align='left',
+                        fill=text_color  )
+
 def draw_multiple_line_text(img, text, font, text_color=(255,255,255), text_start_height=0, offset=(0,0), text_area=(None, None), step=None):
+    print(text)
     if(text_area==(None, None)):
         text_area = img.size
     text_area_width, _ = text_area
@@ -77,11 +105,11 @@ def draw_multiple_line_text(img, text, font, text_color=(255,255,255), text_star
     offset_x, offset_y = offset
     image_width, _ = img.size
     y_text = text_start_height
-    lines = textwrap.wrap(text, width=text_area_width)
+    lines = (textwrap.wrap(text, width=text_area_width))
     for line in lines:
         line_width, line_height = font.getsize(line)
         draw.text(((image_width - line_width)/2+offset_x, y_text+offset_y), 
-                  line, font=font, fill=text_color)
+                  line, font=font, fill=text_color, align='left')
         y_text += line_height
 
 def outputSequence(sequence, args):
@@ -115,6 +143,32 @@ def createBackground(width=500,
                             )
     return base
 
+def createStaticMetaInfo(width=500, 
+                        height=500, 
+                        color=(0,0,0), 
+                        fontsize=16,
+                        meta="sample_text",
+                        font=(ImageFont.truetype("arial.ttf", 16)),
+                        padding=10,
+                        ):
+    # create a base layer
+    base = Image.new(mode="RGBA", size=(width*2,height), color=(0,0,0))
+    # calculate the text wrap size
+    text_width_max = base.size[0]/fontsize
+
+    text = meta['event']+"\n("+meta['timecontrol']+")\n"+meta['opening']+"\n"
+    text += meta['white']+" ("+meta['whiteelo']+")"+"["+meta['whiteratingdiff']+"]\n"
+    text += meta['black']+" ("+meta['blackelo']+")"+"["+meta['blackratingdiff']+"]\n"
+
+    multiblock_text(img=base, 
+                            text=text,
+                            font=font, 
+                            text_start_height=padding, 
+                            offset=(0,0), 
+                            text_area=(text_width_max,0),
+                            )
+    return base
+    
 def FEN_to_GIF(fen, 
                pgn="sample_text", 
                metadata="",
@@ -125,6 +179,15 @@ def FEN_to_GIF(fen,
                boardsize=500,
                coordinates=True):
 
+    meta = createStaticMetaInfo(meta=metadata,
+                                color=base_color,
+                                fontsize=fontsize,
+                                font=font,
+                                padding=padding,
+                                width=boardsize,
+                                height=(int)(boardsize/2)
+                                )
+
     base = createBackground(pgn=pgn, 
                             color=base_color, 
                             fontsize=fontsize,
@@ -132,7 +195,6 @@ def FEN_to_GIF(fen,
                             padding=padding,
                             width=boardsize,
                             height=boardsize)
-
 
     sys.stdout.flush()
     step = 0
@@ -144,7 +206,6 @@ def FEN_to_GIF(fen,
         percent = (int)((step/len(fen))*100)
         sys.stdout.write("Converting to GIF: %s" %(str(percent)+"%")) 
         sys.stdout.flush()
-        
         # create board from position
         board = chess.Board(position)
         # create image of the board
@@ -155,9 +216,11 @@ def FEN_to_GIF(fen,
                                     size=boardsize,
                                     coordinates=coordinates,
         ))))
-        base.paste(board_img, (0,0))
+        new_base = base.copy()
+        new_base.paste(meta, (0,(int)(boardsize/2)))
+        new_base.paste(board_img, (0,0))
         # add this frame to the gif sequence
-        sequence.append(base)
+        sequence.append(new_base)
     return sequence
 
 def extractText(args):   
@@ -186,23 +249,74 @@ def extractText(args):
 
 def extractMetadata(text):
     metadata = ""
+    quote_regex = r"\"(.*)\""
     metadata_regex = r"^\[.+"
+    Eventregex = r"\[Event.*"
+    Siteregex = r"\[Site.*"
+    Dateregex = r"\[Date.*"
+    Whiteregex = r"\[White.*"
+    Blackregex = r"\[Black.*"
+    Resultregex = r"\[Result.*"
+    WhiteEloregex = r"\[WhiteElo.*"
+    BlackEloregex = r"\[BlackElo.*"
+    WhiteRatingDiffregex = r"\[WhiteRatingDiff.*"
+    BlackRatingDiffregex = r"\[BlackRatingDiff.*"
+    Variantregex = r"\[Variant.*"
+    TimeControlregex = r"\[TimeControl.*"
+    ECOregex = r"\[ECO.*"
+    Openingregex = r"\[Opening.*"
+    Terminationregex = r"\[Termination.*"
+    
     matches = re.finditer(metadata_regex, text, re.MULTILINE)
     for match in matches:
-        metadata += match.group()+"\n"
-    return metadata
+        metadata += match.group()+'\n'
 
-# Take pgn from commandline argument
+    date =  re.search(quote_regex, (re.search(Dateregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    event = re.search(quote_regex, (re.search(Eventregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    site =  re.search(quote_regex, (re.search(Siteregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    result =re.search(quote_regex, (re.search(Resultregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    white = re.search(quote_regex, (re.search(Whiteregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    black = re.search(quote_regex, (re.search(Blackregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    whiteelo = re.search(quote_regex, (re.search(WhiteEloregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    blackelo = re.search(quote_regex, (re.search(BlackEloregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    whiteratingdiff =re.search(quote_regex, (re.search(WhiteRatingDiffregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    blackratingdiff = re.search(quote_regex, (re.search(BlackRatingDiffregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    variant = re.search(quote_regex, (re.search(Variantregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    timecontrol =re.search(quote_regex, (re.search(TimeControlregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    eco = re.search(quote_regex, (re.search(ECOregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    opening = re.search(quote_regex, (re.search(Openingregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    termination =   re.search(quote_regex, (re.search(Terminationregex, metadata, re.MULTILINE)).group(), re.MULTILINE).group(1)
+    
+    meta ={
+        "date": date,
+        "event": event,
+        "site": site,
+        "result": result,
+        "white": white,
+        "black": black,
+        "whiteelo": whiteelo,
+        "blackelo": blackelo,
+        "whiteratingdiff": whiteratingdiff,
+        "blackratingdiff": blackratingdiff,
+        "variant": variant,
+        "timecontrol": timecontrol,
+        "eco": eco,
+        "opening": opening,
+        "termination": termination
+    }
+    return metadata, meta
+
+#  pgn from commandline argument
+args = parser.parse_args()
 text = extractText(args)
-#metadata_text = extractMetadata(text)
-#print(metadata_text)
+metadata_text, meta_dictionary = extractMetadata(text)
 pgn_string = extractPGN(text)
-pgn_ = io.StringIO(pgn_string)
-game = chess.pgn.read_game(pgn_)
+game = chess.pgn.read_game(io.StringIO(pgn_string))
 FEN = getListOfFEN(game)
 PGN = pgn_string
-#sequence = FEN_to_GIF(FEN, pgn=PGN, metadata=metadata_text)
-sequence = FEN_to_GIF(FEN, pgn=PGN)
+sequence = FEN_to_GIF(FEN, pgn=PGN, metadata=meta_dictionary)
+print(len(sequence))
+#sequence = FEN_to_GIF(FEN, pgn=PGN)
 sys.stdout.write("\r\n")
 sys.stdout.flush()
 outputSequence(sequence, args)
