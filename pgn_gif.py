@@ -208,8 +208,11 @@ def FEN_to_GIF(fen,
                             width=boardsize,
                             height=boardsize)
     sys.stdout.flush()
-    isWhite = True
-    white_clock, black_clock = clks[0], clks[1]
+
+    if clks != []:
+        isWhite = True
+        white_clock, black_clock = clks[0], clks[1]
+
     sequence = []
     step = 0
     for position in fen:
@@ -224,35 +227,34 @@ def FEN_to_GIF(fen,
         # create image of the board
         board_img = Image.open(BytesIO(svg2png(chess.svg.board(board,size=boardsize,coordinates=coordinates))))
         new_base = base.copy()
-        e = evals.pop(0)
-        eval_img = createEval(eval=e,
-                              color=base_color,
-                              fontsize=fontsize,
-                              font=font,
-                              padding=padding,
-                              width=boardsize,
-                              height=(int)(boardsize/2))
-
-        if isWhite:
-            white_clock = clks.pop(0)
-        else:
-            black_clock = clks.pop(0)
-        isWhite = not isWhite
+        new_base.paste(meta, (0,(int)(boardsize/2)))
+        if clks != []:
+            if isWhite:
+                white_clock = clks.pop(0)
+            else:
+                black_clock = clks.pop(0)
+            isWhite = not isWhite
         
-        clk_img = createClk(clk=(white_clock, black_clock),
+            clk_img = createClk(clk=(white_clock, black_clock),
                              color=base_color,
                              fontsize=fontsize,
                              font=font,
                              padding=padding,
                              width=boardsize,
                              height=(int)(boardsize))
-
-        new_base.paste(meta, (0,(int)(boardsize/2)))
-        new_base.paste(clk_img, ((int)(boardsize),((int)(boardsize/100)*85)))
-        new_base.paste(eval_img, ((int)(boardsize),((int)(boardsize/100)*90)))
+            new_base.paste(clk_img, ((int)(boardsize),((int)(boardsize/100)*85)))
+        if evals != []:
+            e = evals.pop(0)
+            eval_img = createEval(eval=e,
+                              color=base_color,
+                              fontsize=fontsize,
+                              font=font,
+                              padding=padding,
+                              width=boardsize,
+                              height=(int)(boardsize/2))
+            new_base.paste(eval_img, ((int)(boardsize),((int)(boardsize/100)*90)))
         new_base.paste(board_img, (0,0))
 
-        
         # add this frame to the gif sequence
         sequence.append(new_base)
     return sequence
