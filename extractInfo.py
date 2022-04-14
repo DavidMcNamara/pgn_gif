@@ -96,7 +96,10 @@ def extractEval(text):
     eval_regex = r"\[%eval ((?:\\.|[^\]\\])*)]"
     matches = re.finditer(eval_regex, text, re.MULTILINE)
     for match in matches:
-        evals.append(float(match.group(1)))
+        try:
+            evals.append(float(match.group(1)))
+        except:
+            evals.append(match.group(1))
     return evals
 
 def extractClock(text):

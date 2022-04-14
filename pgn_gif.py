@@ -1,11 +1,9 @@
-from importlib.metadata import metadata
 import io
 import re
 import sys
 import uuid
 import chess
 import textwrap
-import requests
 import chess.pgn
 import chess.svg
 from io import BytesIO
@@ -91,8 +89,6 @@ def createBackground(width=500,
 
 def drawline(base, 
             shape,
-            width=500, 
-            height=500,
             ):
     img = ImageDraw.Draw(base)  
     img.line(shape, fill ="red", width = 10)
@@ -105,7 +101,10 @@ def createEval(width=500,
                eval=0,
                font=(ImageFont.truetype("arial.ttf", 16)),
                padding=10,):
-    pixels = ((width/2) + (eval*10),0)
+    if (type(eval)!=str):
+        pixels = ((width/2) + (eval*10),0)
+    else:
+        pixels = ((width/2),0)
     shape = [pixels, (width/2,0)]
 
     # create a base layer
@@ -133,25 +132,24 @@ def createClk(width=500,
                padding=10,):
 
     # create a base layer
-    base = Image.new(mode="RGBA", size=(width,height), color=(255,255,255))
+    base = Image.new(mode="RGBA", size=(width,height), color=color)
     # calculate the text wrap size
     text_width_max = base.size[0]/fontsize
-    
     multiblock_text(img=base, 
-                            text=clk[0],
+                            text="Black: "+clk[1],
                             font=font, 
                             text_start_height=padding, 
-                            offset=(150,0), 
+                            offset=(-width/4,0), 
                             text_area=(text_width_max,0),
-                            text_color=(100,100,100)
+                            text_color=(255,255,255),
                             )
     multiblock_text(img=base, 
-                            text=clk[1],
+                            text="White: "+clk[0],
                             font=font, 
                             text_start_height=padding, 
-                            offset=(-150,0), 
+                            offset=(width/8,0), 
                             text_area=(text_width_max,0),
-                            text_color=(0,0,0)
+                            text_color=(255,255,255)
                             )
     return base
 
@@ -252,7 +250,7 @@ def FEN_to_GIF(fen,
                               padding=padding,
                               width=boardsize,
                               height=(int)(boardsize/2))
-            new_base.paste(eval_img, ((int)(boardsize),((int)(boardsize/100)*90)))
+            new_base.paste(eval_img, ((int)(boardsize),((int)(boardsize/100)*95 - padding)))
         new_base.paste(board_img, (0,0))
 
         # add this frame to the gif sequence
