@@ -166,10 +166,14 @@ game = chess.pgn.read_game(io.StringIO(pgn_string))
 FEN = getListOfFEN(game)
 PGN = pgn_string
 
+# remove the clock and eval information from the PGN to be displayed
+extra_info_regex = r"\{ ((?:\\.|[^\}\\])*)} \d+\.\.\. |\{ ((?:\\.|[^\}\\])*)}"
+pgn_string = re.sub(extra_info_regex, "", pgn_string)
+
 EVALS = extractEval(PGN)
 CLKS = extractClock(PGN)
 
-sequence = FEN_to_GIF(fen=FEN, pgn=PGN, metadata=meta_dictionary,evals=EVALS,clks=CLKS)
+sequence = FEN_to_GIF(fen=FEN, pgn=pgn_string, metadata=meta_dictionary,evals=EVALS,clks=CLKS)
 sys.stdout.write("\r\n")
 sys.stdout.flush()
 outputSequence(sequence, args)
