@@ -1,6 +1,6 @@
 # pgn_gif
 ## About The Project
-Convert PGN file, Lichess game URLs or Lichess Game IDs to .gif
+Convert a PGN file, Lichess game URLs or Lichess Game IDs to .gif
 Displays move, clock and evaluation.
 
 ![](https://github.com/DavidMcNamara/pgn_gif/blob/main/Example_game.gif)
