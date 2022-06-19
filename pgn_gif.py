@@ -1,11 +1,4 @@
-import io
-import re
-import sys
-import uuid
-import chess
-import textwrap
-import chess.pgn
-import chess.svg
+import io, re, sys, uuid, chess, textwrap, chess.svg, chess.pgn
 from io import BytesIO
 from cairosvg import svg2png
 from PIL import Image, ImageDraw, ImageFont
@@ -23,6 +16,7 @@ def getListOfFEN(game):
     for move in game.mainline_moves():
         data.append(str(board.fen()))
         board.push(move)
+    data.append(str(board.fen()))
     return data
 
 def generateFilename():
@@ -35,11 +29,7 @@ def multiblock_text(img, text, font, text_color=(255,255,255), text_start_height
     offset_x, offset_y = offset
     image_width, _ = img.size
     y_text = text_start_height
-    draw.multiline_text(((image_width/2)+offset_x, (y_text+offset_y)),
-                        text=text, 
-                        font=font,
-                        align=align,
-                        fill=text_color)
+    draw.multiline_text(((image_width/2)+offset_x, (y_text+offset_y)),text=text, font=font,align=align,fill=text_color)
 
 def draw_multiple_line_text(img, text, font, text_color=(255,255,255), text_start_height=0, offset=(0,0), text_area=(None, None), step=None):
     if(text_area==(None, None)):
@@ -52,8 +42,7 @@ def draw_multiple_line_text(img, text, font, text_color=(255,255,255), text_star
     lines = (textwrap.wrap(text, width=text_area_width))
     for line in lines:
         line_width, line_height = font.getsize(line)
-        draw.text(((image_width - line_width)/2+offset_x, y_text+offset_y), 
-                  line, font=font, fill=text_color, align='left')
+        draw.text(((image_width - line_width)/2+offset_x, y_text+offset_y), line, font=font, fill=text_color, align='left')
         y_text += line_height
 
 def outputSequence(sequence, args):
@@ -66,41 +55,20 @@ def outputSequence(sequence, args):
         save_all = True, append_images = sequence[1:], 
         optimize = True, duration = 1000)
 
-def createBackground(width=500, 
-                     height=500, 
-                     color=(0,0,0), 
-                     fontsize=16,
-                     pgn="sample_text",
-                     font=(ImageFont.truetype("arial.ttf", 16)),
-                     padding=10,
-                     ):
+def createBackground(width=500, height=500, color=(0,0,0), fontsize=16,pgn="sample_text",font=(ImageFont.truetype("arial.ttf", 16)),padding=10):
     # create a base layer
     base = Image.new(mode="RGBA", size=(width*2,height), color=color)
     # calculate the text wrap size
     text_width_max = base.size[0]/fontsize
-    draw_multiple_line_text(img=base, 
-                                text=pgn,
-                                font=font, 
-                                text_start_height=padding, 
-                                offset=(width/2,0), 
-                                text_area=(text_width_max,0),
-                            )
+    draw_multiple_line_text(img=base, text=pgn,font=font, text_start_height=padding, offset=(width/2,0), text_area=(text_width_max,0))
     return base
 
-def drawline(base, 
-            shape,
-            ):
+def drawline(base, shape):
     img = ImageDraw.Draw(base)  
     img.line(shape, fill ="red", width = 10)
     return base
 
-def createEval(width=500, 
-               height=500, 
-               color=(0,0,0), 
-               fontsize=16,
-               eval=0,
-               font=(ImageFont.truetype("arial.ttf", 16)),
-               padding=10,):
+def createEval(width=500, height=500, color=(0,0,0), fontsize=16,eval=0,font=(ImageFont.truetype("arial.ttf", 16)),padding=10,):
     if (type(eval)!=str):
         pixels = ((width/2) + (eval*10),0)
     else:
@@ -114,53 +82,19 @@ def createEval(width=500,
     
     base_ = drawline(base, shape)
     e = str(eval)
-    multiblock_text(img=base, 
-                            text=e,
-                            font=font, 
-                            text_start_height=padding, 
-                            offset=(0,0), 
-                            text_area=(text_width_max,0),
-                            )
+    multiblock_text(img=base, text=e,font=font, text_start_height=padding, offset=(0,0),text_area=(text_width_max,0))
     return base_
 
-def createClk(width=500, 
-              height=500, 
-               color=(0,0,0), 
-               fontsize=16,
-               clk="NA",
-               font=(ImageFont.truetype("arial.ttf", 16)),
-               padding=10,):
-
+def createClk(width=500, height=500, color=(0,0,0), fontsize=16,clk="NA",font=(ImageFont.truetype("arial.ttf", 16)),padding=10):
     # create a base layer
     base = Image.new(mode="RGBA", size=(width,height), color=color)
     # calculate the text wrap size
     text_width_max = base.size[0]/fontsize
-    multiblock_text(img=base, 
-                            text="Black: "+clk[1],
-                            font=font, 
-                            text_start_height=padding, 
-                            offset=(-width/4,0), 
-                            text_area=(text_width_max,0),
-                            text_color=(255,255,255),
-                            )
-    multiblock_text(img=base, 
-                            text="White: "+clk[0],
-                            font=font, 
-                            text_start_height=padding, 
-                            offset=(width/8,0), 
-                            text_area=(text_width_max,0),
-                            text_color=(255,255,255)
-                            )
+    multiblock_text(img=base, text="Black: "+clk[1],font=font, text_start_height=padding, offset=(-width/4,0), text_area=(text_width_max,0),text_color=(255,255,255))
+    multiblock_text(img=base, text="White: "+clk[0],font=font, text_start_height=padding, offset=(width/8,0), text_area=(text_width_max,0),text_color=(255,255,255))
     return base
 
-def createStaticMetaInfo(width=500, 
-                        height=500, 
-                        color=(0,0,0), 
-                        fontsize=16,
-                        meta="sample_text",
-                        font=(ImageFont.truetype("arial.ttf", 16)),
-                        padding=10,
-                        ):
+def createStaticMetaInfo(width=500, height=500, color=(0,0,0), fontsize=16,meta="sample_text",font=(ImageFont.truetype("arial.ttf", 16)),padding=10):
     # create a base layer
     base = Image.new(mode="RGBA", size=(width*2,height), color=(0,0,0))
     # calculate the text wrap size
@@ -170,47 +104,22 @@ def createStaticMetaInfo(width=500,
     text += "White: "+meta['white']+" ("+meta['whiteelo']+")"+"["+meta['whiteratingdiff']+"]\n"
     text += "Black: "+meta['black']+" ("+meta['blackelo']+")"+"["+meta['blackratingdiff']+"]\n"
 
-    multiblock_text(img=base, 
-                            text=text,
-                            font=font, 
-                            text_start_height=padding, 
-                            offset=(10,0), 
-                            text_area=(text_width_max,0),
-                            )
+    multiblock_text(img=base, text=text,font=font, text_start_height=padding, offset=(10,0), text_area=(text_width_max,0),)
     return base
     
-def FEN_to_GIF(fen, 
-               evals=[],
-               clks=[],
-               pgn="sample_text", 
-               metadata="",
-               base_color=(0,0,0), 
-               fontsize=16, 
-               font=(ImageFont.truetype("arial.ttf", 16)), 
-               padding=10, 
-               boardsize=500,
-               coordinates=True):
-    meta = createStaticMetaInfo(meta=metadata,
-                                color=base_color,
-                                fontsize=fontsize,
-                                font=font,
-                                padding=padding,
-                                width=boardsize,
-                                height=(int)(boardsize/2)
-                                )
-    base = createBackground(pgn=pgn, 
-                            color=base_color, 
-                            fontsize=fontsize,
-                            font=font,
-                            padding=padding,
-                            width=boardsize,
-                            height=boardsize)
+def FEN_to_GIF(fen, evals=[],clks=[],pgn="sample_text", metadata="",
+               base_color=(0,0,0), fontsize=16, font=(ImageFont.truetype("arial.ttf", 16)), 
+               padding=10, boardsize=500,coordinates=True):
+    meta = createStaticMetaInfo(meta=metadata,color=base_color,fontsize=fontsize,font=font,
+                                padding=padding,width=boardsize,height=(int)(boardsize/2))
+    base = createBackground(pgn=pgn, color=base_color, fontsize=fontsize,font=font,padding=padding,width=boardsize,height=boardsize)
     sys.stdout.flush()
-
+    # check to see if the clocks are being used
     if clks != []:
         isWhite = True
         white_clock, black_clock = clks[0], clks[1]
 
+    # begin sequence gathering
     sequence = []
     step = 0
     for position in fen:
@@ -226,6 +135,7 @@ def FEN_to_GIF(fen,
         board_img = Image.open(BytesIO(svg2png(chess.svg.board(board,size=boardsize,coordinates=coordinates))))
         new_base = base.copy()
         new_base.paste(meta, (0,(int)(boardsize/2)))
+        # include clock info
         if clks != []:
             if isWhite:
                 white_clock = clks.pop(0)
@@ -233,27 +143,17 @@ def FEN_to_GIF(fen,
                 black_clock = clks.pop(0)
             isWhite = not isWhite
         
-            clk_img = createClk(clk=(white_clock, black_clock),
-                             color=base_color,
-                             fontsize=fontsize,
-                             font=font,
-                             padding=padding,
-                             width=boardsize,
-                             height=(int)(boardsize))
+            clk_img = createClk(clk=(white_clock, black_clock),color=base_color,fontsize=fontsize,
+                             font=font,padding=padding,width=boardsize,height=(int)(boardsize))
             new_base.paste(clk_img, ((int)(boardsize),((int)(boardsize/100)*85)))
+        # include eval info 
         if evals != []:
             e = evals.pop(0)
-            eval_img = createEval(eval=e,
-                              color=base_color,
-                              fontsize=fontsize,
-                              font=font,
-                              padding=padding,
-                              width=boardsize,
-                              height=(int)(boardsize/2))
+            eval_img = createEval(eval=e,color=base_color,fontsize=fontsize,font=font,padding=padding,width=boardsize,height=(int)(boardsize/2))
             new_base.paste(eval_img, ((int)(boardsize),((int)(boardsize/100)*95 - padding)))
-        new_base.paste(board_img, (0,0))
 
         # add this frame to the gif sequence
+        new_base.paste(board_img, (0,0))
         sequence.append(new_base)
     return sequence
 
@@ -269,11 +169,7 @@ PGN = pgn_string
 EVALS = extractEval(PGN)
 CLKS = extractClock(PGN)
 
-sequence = FEN_to_GIF(fen=FEN, 
-                      pgn=PGN, 
-                      metadata=meta_dictionary,
-                      evals=EVALS,
-                      clks=CLKS)
+sequence = FEN_to_GIF(fen=FEN, pgn=PGN, metadata=meta_dictionary,evals=EVALS,clks=CLKS)
 sys.stdout.write("\r\n")
 sys.stdout.flush()
 outputSequence(sequence, args)

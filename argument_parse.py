@@ -1,5 +1,5 @@
-import argparse
 def getParser():
+    import argparse
     parser = argparse.ArgumentParser("PGN to GIF")
     parser.add_argument('-f', 
                         '--file', 
